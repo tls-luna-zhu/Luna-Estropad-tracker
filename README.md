@@ -35,8 +35,8 @@ A specialized web application designed to help MTF transgender individuals track
 
 1. Clone the repository:
    ```
-   git clone https://github.com/yourusername/lunas-estropad-tracker.git
-   cd lunas-estropad-tracker
+   git clone https://github.com/tls-luna-zhu/Luna-Estropad-tracker.git
+   cd Luna-Estropad-tracker
    ```
 
 2. Install dependencies:
