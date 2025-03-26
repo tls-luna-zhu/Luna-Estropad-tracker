@@ -1,0 +1,19 @@
+<svg width="128" height="128" viewBox="0 0 128 128" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Pixel-style patch in green color -->
+  <rect x="16" y="16" width="96" height="96" fill="#A7F3D0" />
+  <rect x="24" y="24" width="80" height="80" fill="#6EE7B7" />
+  
+  <!-- 7d text in pixelated style -->
+  <!-- Number 7 -->
+  <rect x="36" y="40" width="24" height="8" fill="#FFF" />
+  <rect x="52" y="48" width="8" height="8" fill="#FFF" />
+  <rect x="48" y="56" width="8" height="8" fill="#FFF" />
+  <rect x="44" y="64" width="8" height="8" fill="#FFF" />
+  <rect x="40" y="72" width="8" height="8" fill="#FFF" />
+  
+  <!-- Letter d -->
+  <rect x="68" y="40" width="8" height="40" fill="#FFF" />
+  <rect x="76" y="40" width="16" height="8" fill="#FFF" />
+  <rect x="84" y="48" width="8" height="24" fill="#FFF" />
+  <rect x="76" y="72" width="16" height="8" fill="#FFF" />
+</svg> 

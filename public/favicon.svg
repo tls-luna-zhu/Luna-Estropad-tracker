@@ -1,0 +1,22 @@
+<svg width="64" height="64" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Pixel-style heart shape in pastel pink -->
+  <rect x="16" y="12" width="8" height="8" fill="#FFA6C9" />
+  <rect x="40" y="12" width="8" height="8" fill="#FFA6C9" />
+  <rect x="8" y="20" width="8" height="8" fill="#FFA6C9" />
+  <rect x="48" y="20" width="8" height="8" fill="#FFA6C9" />
+  <rect x="8" y="28" width="8" height="8" fill="#FFA6C9" />
+  <rect x="16" y="36" width="8" height="8" fill="#FFA6C9" />
+  <rect x="24" y="44" width="8" height="8" fill="#FFA6C9" />
+  <rect x="32" y="44" width="8" height="8" fill="#FFA6C9" />
+  <rect x="40" y="36" width="8" height="8" fill="#FFA6C9" />
+  <rect x="48" y="28" width="8" height="8" fill="#FFA6C9" />
+  <rect x="16" y="20" width="8" height="16" fill="#FFA6C9" />
+  <rect x="24" y="20" width="16" height="24" fill="#FFA6C9" />
+  <rect x="40" y="20" width="8" height="16" fill="#FFA6C9" />
+  
+  <!-- EstroPad 'E' symbol in the center -->
+  <rect x="24" y="24" width="4" height="16" fill="#FFF" />
+  <rect x="28" y="24" width="8" height="4" fill="#FFF" />
+  <rect x="28" y="30" width="6" height="4" fill="#FFF" />
+  <rect x="28" y="36" width="8" height="4" fill="#FFF" />
+</svg> 
