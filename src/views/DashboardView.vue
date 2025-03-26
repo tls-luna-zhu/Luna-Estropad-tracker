@@ -1,94 +1,153 @@
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue'
-import { useRouter } from 'vue-router'
+import { ref, computed, onMounted } from 'vue'
 import { useAuthStore } from '@/stores/auth'
-import { usePatchesStore } from '@/stores/patches'
-import { useNotificationsStore } from '@/stores/notifications'
-import { ElMessage } from 'element-plus'
+import { usePatchesStore, type PatchType, type PatchApplication } from '@/stores/patches'
+import { getDaysHoursFromNow } from '@/utils/date'
 
-const router = useRouter()
 const authStore = useAuthStore()
 const patchesStore = usePatchesStore()
-const notificationsStore = useNotificationsStore()
 
-// Initialize stores
+// Initialize on mount
 onMounted(() => {
   authStore.init()
-  notificationsStore.init()
-  
-  // Request notification permissions if not already granted
-  if (notificationsStore.notificationPermission !== 'granted' &&
-      notificationsStore.preferences.enableBrowserNotifications) {
-    notificationsStore.requestNotificationPermission()
-  }
 })
 
-// Navigate to patches view
-const navigateToPatches = () => {
-  router.push('/patches')
+// Get time left until a patch expires
+function getTimeLeft(appliedAt: string, durationHours: number) {
+  const date = new Date(appliedAt)
+  const { days, hours } = getDaysHoursFromNow(
+    new Date(date.getTime() + durationHours * 60 * 60 * 1000)
+  )
+  
+  if (days < 0 || hours < 0) {
+    return 'Expired'
+  }
+  
+  return `${days}d ${hours}h`
 }
 
-// Format time until patch change is needed
-const formatTimeRemaining = (timeRemaining: number) => {
-  if (timeRemaining <= 0) {
-    return 'Expired (change now)'
+// Get class for time left
+function getTimeLeftClass(appliedAt: string, durationHours: number) {
+  const date = new Date(appliedAt)
+  const { days, hours } = getDaysHoursFromNow(
+    new Date(date.getTime() + durationHours * 60 * 60 * 1000)
+  )
+  
+  if (days < 0 || hours < 0) {
+    return 'text-red-600'
   }
   
-  const hours = Math.floor(timeRemaining / (60 * 60 * 1000))
-  const minutes = Math.floor((timeRemaining % (60 * 60 * 1000)) / (60 * 1000))
-  
-  if (hours > 24) {
-    const days = Math.floor(hours / 24)
-    return `${days} days, ${hours % 24} hours`
-  } else if (hours > 0) {
-    return `${hours} hours, ${minutes} minutes`
-  } else {
-    return `${minutes} minutes`
+  if (days < 1) {
+    return 'text-orange-600'
   }
+  
+  return 'text-green-600'
 }
 
-// Format date in a readable format
-const formatDate = (date: Date) => {
-  return date.toLocaleDateString('en-US', {
-    weekday: 'short',
-    month: 'short',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit'
-  })
+// Format date
+function formatDate(dateStr: string) {
+  const date = new Date(dateStr)
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  const year = date.getFullYear()
+  const hours = String(date.getHours()).padStart(2, '0')
+  const minutes = String(date.getMinutes()).padStart(2, '0')
+  
+  return `${month}/${day}/${year} ${hours}:${minutes}`
 }
 
-// Sort active patches by urgency (expired first, then by remaining time)
-const sortedActivePatches = computed(() => {
-  return [...patchesStore.activePatches].sort((a, b) => {
-    if (a.isExpired && !b.isExpired) return -1
-    if (!a.isExpired && b.isExpired) return 1
-    return a.timeRemaining - b.timeRemaining
-  })
+// Calculate expiry date
+function calculateExpiryDate(appliedAt: string, durationHours: number) {
+  const date = new Date(appliedAt)
+  const expiryTimestamp = date.getTime() + durationHours * 60 * 60 * 1000
+  return formatDate(new Date(expiryTimestamp).toISOString())
+}
+
+interface ActivePatch {
+  id: string;
+  patchTypeId: string;
+  appliedAt: string;
+  location: string;
+  notes?: string;
+  patchName: string;
+  isCustom: boolean;
+  durationHours: number;
+  imageUrl: string;
+}
+
+// Get active patches
+const activePatches = computed<ActivePatch[]>(() => {
+  return patchesStore.applications
+    .map(app => {
+      const patchType = patchesStore.getPatchType(app.patchTypeId)
+      return {
+        ...app,
+        patchName: patchType?.name || 'Unknown',
+        isCustom: patchType?.isCustom || false,
+        durationHours: patchType?.durationHours || 0,
+        imageUrl: patchesStore.getPatchImagePath(app.patchTypeId)
+      }
+    })
+    .sort((a, b) => {
+      // Sort by expiry date (soonest first)
+      const aDate = new Date(a.appliedAt)
+      const bDate = new Date(b.appliedAt)
+      const aExpiry = aDate.getTime() + a.durationHours * 60 * 60 * 1000
+      const bExpiry = bDate.getTime() + b.durationHours * 60 * 60 * 1000
+      return aExpiry - bExpiry
+    })
 })
 
-// Calculate total patches applied
-const totalApplied = computed(() => {
-  return patchesStore.applications.length
+interface InventoryItem {
+  id: string;
+  name: string;
+  isCustom: boolean;
+  inventory: number;
+  imageUrl: string;
+  status: 'out' | 'low' | 'ok';
+}
+
+// Get inventory summary
+const inventorySummary = computed(() => {
+  return patchesStore.patchTypes
+    .filter(pt => pt.enabled)
+    .map(pt => {
+      const inventoryItem = patchesStore.inventory.find(item => item.patchTypeId === pt.id)
+      const count = inventoryItem?.count || 0
+      let status: 'out' | 'low' | 'ok';
+      
+      if (count <= 0) {
+        status = 'out';
+      } else if (count < 3) {
+        status = 'low';
+      } else {
+        status = 'ok';
+      }
+      
+      return {
+        id: pt.id,
+        name: pt.name,
+        isCustom: pt.isCustom || false,
+        inventory: count,
+        imageUrl: patchesStore.getPatchImagePath(pt.id),
+        status
+      }
+    })
+    .sort((a, b) => {
+      // Sort by status (out, low, ok) and then by name
+      if (a.status !== b.status) {
+        if (a.status === 'out') return -1
+        if (b.status === 'out') return 1
+        if (a.status === 'low') return -1
+        if (b.status === 'low') return 1
+      }
+      return a.name.localeCompare(b.name)
+    })
 })
 
-// Calculate total patches in inventory
-const totalInventory = computed(() => {
-  return patchesStore.inventory.reduce((total, item) => total + item.count, 0)
-})
-
-// Count patches by type
-const patchesByType = computed(() => {
-  const result: Record<string, number> = {}
-  
-  for (const app of patchesStore.applications) {
-    const patchType = patchesStore.getPatchType(app.patchTypeId)
-    if (patchType) {
-      result[patchType.name] = (result[patchType.name] || 0) + 1
-    }
-  }
-  
-  return result
+// Check if we need to show inventory warnings
+const hasLowInventory = computed(() => {
+  return inventorySummary.value.some(item => item.status === 'out' || item.status === 'low')
 })
 </script>
 
@@ -103,107 +162,128 @@ const patchesByType = computed(() => {
       </nav>
     </header>
     
-    <main class="flex-1 w-full max-w-6xl mx-auto p-6">
+    <main class="flex-1 w-full max-w-4xl mx-auto p-6">
       <h2 class="text-2xl mb-6 text-primary-700">Dashboard</h2>
       
-      <!-- Stats Cards -->
-      <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-        <div class="pixel-card bg-primary-50">
-          <h3 class="text-lg mb-2 text-primary-600">Active Patches</h3>
-          <p class="text-3xl font-bold">{{ sortedActivePatches.length }}</p>
-        </div>
-        
-        <div class="pixel-card bg-primary-50">
-          <h3 class="text-lg mb-2 text-primary-600">Total Applied</h3>
-          <p class="text-3xl font-bold">{{ totalApplied }}</p>
-        </div>
-        
-        <div class="pixel-card bg-primary-50">
-          <h3 class="text-lg mb-2 text-primary-600">Inventory</h3>
-          <p class="text-3xl font-bold">{{ totalInventory }}</p>
-        </div>
-      </div>
-      
-      <!-- Inventory Alerts -->
-      <div v-if="patchesStore.lowInventoryAlerts.length > 0" class="mb-8">
-        <h3 class="text-xl mb-4 text-primary-700">Inventory Alerts</h3>
-        
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div 
-            v-for="alert in patchesStore.lowInventoryAlerts" 
-            :key="alert.patchTypeId"
-            class="pixel-card border-2"
-            :class="alert.isOut ? 'border-red-500 bg-red-50' : 'border-yellow-500 bg-yellow-50'"
-          >
-            <h4 class="text-lg font-semibold">
-              {{ alert.patchType?.name }}
-            </h4>
-            <p v-if="alert.isOut" class="text-red-600 font-bold">
-              OUT OF STOCK! Please refill your prescription.
-            </p>
-            <p v-else class="text-yellow-700">
-              Low stock: {{ alert.count }} patches remaining
-            </p>
-          </div>
-        </div>
+      <div v-if="authStore.user" class="mb-6">
+        <p class="text-lg">
+          Welcome back, <span class="font-semibold">{{ authStore.user.username }}</span>!
+        </p>
       </div>
       
       <!-- Active Patches -->
-      <div>
-        <div class="flex justify-between items-center mb-4">
-          <h3 class="text-xl text-primary-700">Active Patches</h3>
-          <button 
-            @click="navigateToPatches" 
-            class="pixel-btn bg-secondary-500 hover:bg-secondary-600 text-white text-sm"
-          >
-            Manage Patches
-          </button>
-        </div>
+      <div class="pixel-card mb-6">
+        <h3 class="text-xl mb-4 text-primary-700">Active Patches</h3>
         
-        <div v-if="sortedActivePatches.length === 0" class="pixel-card text-center py-8">
-          <p class="text-gray-500">No active patches. Apply a new patch to get started!</p>
-          <button 
-            @click="navigateToPatches" 
-            class="pixel-btn mt-4 bg-primary-500 hover:bg-primary-600 text-white"
-          >
+        <div v-if="activePatches.length === 0" class="text-center py-6">
+          <p class="text-gray-600">No active patches</p>
+          <router-link to="/patches" class="pixel-btn inline-block mt-4 bg-primary-500 hover:bg-primary-600 text-white">
             Apply New Patch
-          </button>
+          </router-link>
         </div>
         
-        <div v-else class="space-y-4">
+        <div v-else class="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div 
-            v-for="patch in sortedActivePatches" 
+            v-for="patch in activePatches" 
             :key="patch.id"
-            class="pixel-card"
-            :class="{'border-red-500': patch.isExpired}"
+            class="border border-gray-200 rounded-lg p-4 flex items-start"
           >
-            <div class="flex flex-col md:flex-row justify-between">
-              <div>
-                <h4 class="text-lg font-semibold">
-                  {{ patch.patchType?.name }}
-                </h4>
-                <p class="text-sm text-gray-600">
-                  Applied: {{ formatDate(patch.appliedAt) }}
-                </p>
-                <p class="text-sm text-gray-600">
-                  Location: {{ patch.location }}
-                </p>
-                <p class="mt-2 font-semibold" :class="patch.isExpired ? 'text-red-600' : 'text-primary-600'">
-                  {{ formatTimeRemaining(patch.timeRemaining) }}
-                </p>
-              </div>
-              
-              <div class="mt-4 md:mt-0">
-                <button 
-                  v-if="patch.isExpired"
-                  @click="navigateToPatches" 
-                  class="pixel-btn bg-red-500 hover:bg-red-600 text-white text-sm"
-                >
-                  Change Now
-                </button>
-              </div>
+            <img 
+              :src="patch.imageUrl" 
+              :alt="patch.patchName" 
+              class="w-16 h-16 mr-4"
+            />
+            <div class="flex-1">
+              <h4 class="font-semibold text-lg">
+                {{ patch.patchName }}
+                <span v-if="patch.isCustom" class="text-xs text-purple-600 ml-1">(Custom)</span>
+              </h4>
+              <p class="text-sm text-gray-600">
+                Applied: {{ formatDate(patch.appliedAt) }}
+              </p>
+              <p class="text-sm text-gray-600">
+                Expires: {{ calculateExpiryDate(patch.appliedAt, patch.durationHours) }}
+              </p>
+              <p class="text-sm font-medium mt-1" :class="getTimeLeftClass(patch.appliedAt, patch.durationHours)">
+                Time remaining: {{ getTimeLeft(patch.appliedAt, patch.durationHours) }}
+              </p>
             </div>
           </div>
+        </div>
+      </div>
+      
+      <!-- Inventory Status -->
+      <div class="pixel-card mb-6">
+        <h3 class="text-xl mb-4 text-primary-700">Inventory Status</h3>
+        
+        <div v-if="hasLowInventory" class="mb-4 p-3 bg-orange-100 border border-orange-300 rounded-lg">
+          <p class="font-medium text-orange-800">
+            <span class="inline-block align-middle mr-2">⚠️</span>
+            You have items that are low or out of stock
+          </p>
+        </div>
+        
+        <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+          <div 
+            v-for="item in inventorySummary" 
+            :key="item.id"
+            class="border border-gray-200 rounded-lg p-3 flex flex-col items-center text-center"
+          >
+            <img 
+              :src="item.imageUrl" 
+              :alt="item.name" 
+              class="w-16 h-16 mb-2"
+            />
+            <h4 class="font-semibold">
+              {{ item.name }}
+              <span v-if="item.isCustom" class="text-xs text-purple-600 ml-1">(Custom)</span>
+            </h4>
+            <p 
+              class="font-medium mt-1" 
+              :class="{
+                'text-red-600': item.status === 'out',
+                'text-orange-600': item.status === 'low',
+                'text-green-600': item.status === 'ok'
+              }"
+            >
+              {{ item.inventory }} in stock
+              <span v-if="item.status === 'out'" class="text-xs">(Out of stock!)</span>
+              <span v-else-if="item.status === 'low'" class="text-xs">(Low!)</span>
+            </p>
+          </div>
+        </div>
+        
+        <div class="mt-4 text-center">
+          <router-link to="/patches" class="pixel-btn inline-block bg-primary-500 hover:bg-primary-600 text-white">
+            Manage Inventory
+          </router-link>
+        </div>
+      </div>
+      
+      <!-- Quick Actions -->
+      <div class="pixel-card">
+        <h3 class="text-xl mb-4 text-primary-700">Quick Actions</h3>
+        
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <router-link to="/patches" class="block border border-gray-200 rounded-lg p-4 hover:bg-gray-50">
+            <h4 class="font-semibold text-lg">Apply Patch</h4>
+            <p class="text-sm text-gray-600">Record a new patch application</p>
+          </router-link>
+          
+          <router-link to="/patches" class="block border border-gray-200 rounded-lg p-4 hover:bg-gray-50">
+            <h4 class="font-semibold text-lg">Add to Inventory</h4>
+            <p class="text-sm text-gray-600">Add new patches to your inventory</p>
+          </router-link>
+          
+          <router-link to="/settings" class="block border border-gray-200 rounded-lg p-4 hover:bg-gray-50">
+            <h4 class="font-semibold text-lg">Manage Patch Types</h4>
+            <p class="text-sm text-gray-600">Edit or add custom patch types</p>
+          </router-link>
+          
+          <router-link to="/settings" class="block border border-gray-200 rounded-lg p-4 hover:bg-gray-50">
+            <h4 class="font-semibold text-lg">Notification Settings</h4>
+            <p class="text-sm text-gray-600">Configure reminder preferences</p>
+          </router-link>
         </div>
       </div>
     </main>
