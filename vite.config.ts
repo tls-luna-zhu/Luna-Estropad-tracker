@@ -22,5 +22,7 @@ export default defineConfig({
         }
       }
     }
-  }
+  },
+  // Ensure SVG files are handled as assets
+  assetsInclude: ['**/*.svg']
 }) 
