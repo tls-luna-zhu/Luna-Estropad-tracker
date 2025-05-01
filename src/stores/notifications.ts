@@ -1,7 +1,8 @@
 import { defineStore } from 'pinia'
 import { ref, watch } from 'vue'
-import { useLocalStorage } from '@vueuse/core'
 import { usePatchesStore } from './patches'
+import { useAuthStore } from './auth'
+import { supabase } from '../utils/supabase'
 
 export interface NotificationPreferences {
   enableBrowserNotifications: boolean
@@ -11,16 +12,92 @@ export interface NotificationPreferences {
 }
 
 export const useNotificationsStore = defineStore('notifications', () => {
-  // User notification preferences (persistent)
-  const preferences = useLocalStorage<NotificationPreferences>('notification-preferences', {
+  // Default preferences
+  const defaultPreferences: NotificationPreferences = {
     enableBrowserNotifications: true,
     enableEmailNotifications: false,
     notifyBeforeHours: 24,
     emailAddress: ''
-  })
+  }
+
+  // User notification preferences
+  const preferences = ref<NotificationPreferences>({ ...defaultPreferences })
+  const isLoading = ref(false)
+  const error = ref<string | null>(null)
 
   // Permission status for browser notifications
   const notificationPermission = ref<NotificationPermission>('default')
+  
+  // Load preferences from Supabase
+  async function loadPreferences() {
+    const authStore = useAuthStore()
+    if (!authStore.user) return
+    
+    isLoading.value = true
+    
+    try {
+      const { data, error: supabaseError } = await supabase
+        .from('notification_preferences')
+        .select('*')
+        .eq('user_id', authStore.user.id)
+        .single()
+      
+      if (supabaseError) throw supabaseError
+      
+      if (data) {
+        preferences.value = {
+          enableBrowserNotifications: data.enable_browser_notifications,
+          enableEmailNotifications: data.enable_email_notifications,
+          notifyBeforeHours: data.notify_before_hours,
+          emailAddress: data.email_address || authStore.user.email
+        }
+      } else {
+        // If no preferences found, create default ones
+        await savePreferences(defaultPreferences)
+      }
+    } catch (err) {
+      console.error('Error loading notification preferences:', err)
+      // Fall back to default preferences
+      preferences.value = { ...defaultPreferences }
+    } finally {
+      isLoading.value = false
+    }
+  }
+  
+  // Save preferences to Supabase
+  async function savePreferences(newPreferences: Partial<NotificationPreferences>) {
+    const authStore = useAuthStore()
+    if (!authStore.user) return
+    
+    isLoading.value = true
+    error.value = null
+    
+    try {
+      // Update local preferences
+      preferences.value = { ...preferences.value, ...newPreferences }
+      
+      // Format for database
+      const preferencesData = {
+        user_id: authStore.user.id,
+        enable_browser_notifications: preferences.value.enableBrowserNotifications,
+        enable_email_notifications: preferences.value.enableEmailNotifications,
+        notify_before_hours: preferences.value.notifyBeforeHours,
+        email_address: preferences.value.emailAddress
+      }
+      
+      // Upsert to database
+      const { error: supabaseError } = await supabase
+        .from('notification_preferences')
+        .upsert(preferencesData, { onConflict: 'user_id' })
+      
+      if (supabaseError) throw supabaseError
+    } catch (err: any) {
+      error.value = err.message || 'Failed to save preferences'
+      console.error('Error saving notification preferences:', err)
+    } finally {
+      isLoading.value = false
+    }
+  }
   
   // Check and request notification permission
   async function requestNotificationPermission() {
@@ -58,13 +135,13 @@ export const useNotificationsStore = defineStore('notifications', () => {
     }
   }
   
-  // Mock function to send email notification
+  // Send email notification via Supabase function or service
   function sendEmailNotification(to: string, subject: string, body: string) {
     if (!preferences.value.enableEmailNotifications || !preferences.value.emailAddress) {
       return
     }
     
-    // In a real application, this would call an API endpoint to send an email
+    // In a real application, this would call a Supabase Edge Function or other service
     console.log(`Email notification sent to ${to}:`, { subject, body })
     
     // For demo purposes, we'll show a browser notification instead
@@ -163,8 +240,8 @@ export const useNotificationsStore = defineStore('notifications', () => {
   }
 
   // Update notification settings
-  function updateNotificationPreferences(newPreferences: Partial<NotificationPreferences>) {
-    preferences.value = { ...preferences.value, ...newPreferences }
+  async function updateNotificationPreferences(newPreferences: Partial<NotificationPreferences>) {
+    await savePreferences(newPreferences)
     
     // If enabling browser notifications, request permission
     if (newPreferences.enableBrowserNotifications && notificationPermission.value !== 'granted') {
@@ -173,11 +250,14 @@ export const useNotificationsStore = defineStore('notifications', () => {
   }
 
   // Initialize on first load
-  function init() {
+  async function init() {
     // Check notification permission
     if ('Notification' in window) {
       notificationPermission.value = Notification.permission
     }
+    
+    // Load user preferences
+    await loadPreferences()
     
     // Schedule notification checks
     scheduleNotificationCheck()
@@ -186,7 +266,10 @@ export const useNotificationsStore = defineStore('notifications', () => {
   return {
     preferences,
     notificationPermission,
+    isLoading,
+    error,
     init,
+    loadPreferences,
     requestNotificationPermission,
     updateNotificationPreferences,
     sendBrowserNotification,
