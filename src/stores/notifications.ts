@@ -28,7 +28,11 @@ export const useNotificationsStore = defineStore('notifications', () => {
   // Permission status for browser notifications
   const notificationPermission = ref<NotificationPermission>('default')
   
-  // Load preferences from Supabase
+  /**
+   * Loads the current user's notification preferences from Supabase and updates the local state.
+   *
+   * If no preferences are found for the user, default preferences are saved and used. On error, falls back to default preferences.
+   */
   async function loadPreferences() {
     const authStore = useAuthStore()
     if (!authStore.user) return
@@ -64,7 +68,13 @@ export const useNotificationsStore = defineStore('notifications', () => {
     }
   }
   
-  // Save preferences to Supabase
+  /**
+   * Saves updated notification preferences to Supabase for the authenticated user.
+   *
+   * Merges the provided preferences with the current local preferences and persists them to the `notification_preferences` table. Updates loading and error state accordingly.
+   *
+   * @param newPreferences - Partial set of notification preferences to update.
+   */
   async function savePreferences(newPreferences: Partial<NotificationPreferences>) {
     const authStore = useAuthStore()
     if (!authStore.user) return
@@ -99,7 +109,13 @@ export const useNotificationsStore = defineStore('notifications', () => {
     }
   }
   
-  // Check and request notification permission
+  /**
+   * Requests browser notification permission from the user if not already granted.
+   *
+   * Updates the store's notification permission state based on the user's response.
+   *
+   * @returns A promise that resolves to `true` if permission is granted, or `false` otherwise.
+   */
   async function requestNotificationPermission() {
     if (!('Notification' in window)) {
       return false
@@ -122,7 +138,12 @@ export const useNotificationsStore = defineStore('notifications', () => {
     }
   }
   
-  // Send browser notification
+  /**
+   * Displays a browser notification with the specified title and options if browser notifications are enabled and permission is granted.
+   *
+   * @param title - The notification title.
+   * @param options - Optional notification options.
+   */
   function sendBrowserNotification(title: string, options?: NotificationOptions) {
     if (!preferences.value.enableBrowserNotifications || notificationPermission.value !== 'granted') {
       return
@@ -135,7 +156,15 @@ export const useNotificationsStore = defineStore('notifications', () => {
     }
   }
   
-  // Send email notification via Supabase function or service
+  /**
+   * Sends an email notification if email notifications are enabled and an email address is set.
+   *
+   * In a production environment, this should call a Supabase Edge Function or external service to deliver the email. For demonstration purposes, it logs the notification details and displays a browser notification if permission is granted.
+   *
+   * @param to - The recipient's email address.
+   * @param subject - The subject of the email notification.
+   * @param body - The body content of the email notification.
+   */
   function sendEmailNotification(to: string, subject: string, body: string) {
     if (!preferences.value.enableEmailNotifications || !preferences.value.emailAddress) {
       return
@@ -168,7 +197,14 @@ export const useNotificationsStore = defineStore('notifications', () => {
     })
   }
 
-  // Check for notifications that should be sent
+  /**
+   * Checks for upcoming patch changes and low inventory, sending notifications as needed.
+   *
+   * Sends browser and/or email notifications if a patch change is due within the user's configured notification window, or if patch inventory is low or depleted.
+   *
+   * @remark
+   * Prevents duplicate browser notifications by using unique tags for each notification type.
+   */
   function checkForDueNotifications() {
     const patchesStore = usePatchesStore()
     const { activePatches } = patchesStore
@@ -239,7 +275,13 @@ export const useNotificationsStore = defineStore('notifications', () => {
     }
   }
 
-  // Update notification settings
+  /**
+   * Updates the user's notification preferences and persists them to the database.
+   *
+   * If browser notifications are being enabled and permission has not yet been granted, requests notification permission from the user.
+   *
+   * @param newPreferences - Partial set of notification preferences to update.
+   */
   async function updateNotificationPreferences(newPreferences: Partial<NotificationPreferences>) {
     await savePreferences(newPreferences)
     
@@ -249,7 +291,11 @@ export const useNotificationsStore = defineStore('notifications', () => {
     }
   }
 
-  // Initialize on first load
+  /**
+   * Initializes the notifications store by setting the current browser notification permission, loading user preferences from Supabase, and scheduling periodic notification checks.
+   *
+   * @returns A promise that resolves when initialization is complete.
+   */
   async function init() {
     // Check notification permission
     if ('Notification' in window) {

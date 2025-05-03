@@ -13,7 +13,11 @@ export const useAuthStore = defineStore('auth', () => {
   const isLoading = ref(false)
   const error = ref<string | null>(null)
 
-  // Initialize user from Supabase session
+  /**
+   * Initializes the authentication state by retrieving the current user session from Supabase.
+   *
+   * If a valid session and user are found, updates the user state with the user's id, username, and email.
+   */
   async function init() {
     const { data } = await supabase.auth.getSession()
     
@@ -30,7 +34,14 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
-  // Login user with Supabase
+  /**
+   * Authenticates a user using Supabase with the provided email and password.
+   *
+   * On successful authentication, updates the user state with the user's id, username, and email. If authentication fails, sets an error message.
+   *
+   * @param email - The user's email address.
+   * @param password - The user's password.
+   */
   async function login(email: string, password: string) {
     isLoading.value = true
     error.value = null
@@ -58,7 +69,15 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
-  // Register user with Supabase
+  /**
+   * Registers a new user with Supabase using the provided username, email, and password.
+   *
+   * On successful registration, updates the authentication state with the new user's information.
+   *
+   * @param username - The desired username for the new user.
+   * @param email - The email address for the new user.
+   * @param password - The password for the new user.
+   */
   async function register(username: string, email: string, password: string) {
     isLoading.value = true
     error.value = null
@@ -91,7 +110,12 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
-  // Logout user from Supabase
+  /**
+   * Signs out the current user from Supabase and clears the user state.
+   *
+   * @remark
+   * If an error occurs during sign-out, it is logged but not surfaced to the caller.
+   */
   async function logout() {
     try {
       await supabase.auth.signOut()
