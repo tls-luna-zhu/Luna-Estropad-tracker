@@ -23,6 +23,7 @@ A specialized web application designed to help MTF transgender individuals track
 - **Element Plus**: UI component library
 - **Tailwind CSS**: Utility-first CSS framework
 - **Vite**: Build tool
+- **Supabase**: Backend-as-a-Service for authentication and data storage
 
 ## Getting Started
 
@@ -44,12 +45,16 @@ A specialized web application designed to help MTF transgender individuals track
    npm install
    ```
 
-3. Start the development server:
+3. Set up environment variables:
+   - Copy `.env.example` to `.env.local`
+   - Fill in your Supabase URL and anon key in `.env.local`
+
+4. Start the development server:
    ```
    npm run dev
    ```
 
-4. Open your browser and navigate to `http://localhost:3000`
+5. Open your browser and navigate to `http://localhost:3000`
 
 ### Building for Production
 
